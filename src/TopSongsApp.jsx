@@ -185,11 +185,15 @@ export default function TopSongsApp() {
                   <button
                     onClick={async () => {
                       const msg = await extractEncryptedMessage(song.seokey);
+                      console.log("🔐 Encrypted message:", msg);
+
                       if (msg) {
                         try {
                           const url = decryptLink(msg);
+                          console.log("🎧 Decrypted stream URL:", url);
                           setPlayingUrl(url);
                         } catch (err) {
+                          console.error("Decryption failed:", err);
                           alert("Decryption failed.");
                         }
                       } else {
