@@ -28,7 +28,7 @@ function decryptLink(message) {
 async function extractEncryptedMessage(seokey) {
   try {
     const html = await fetch(proxy(songPageUrl(seokey))).then(r => r.text());
-    const match = html.match(/window\.REDUX_DATA\s*=\s*(\{.*?\});/s);
+    const match = html.match(/window\.REDUX_DATA\s*=\s*(\{[\s\S]*?\})\s*;/);
     if (!match) return null;
     const json = JSON.parse(match[1]);
     return json.song?.songDetail?.tracks?.[0]?.urls?.high?.message || null;
