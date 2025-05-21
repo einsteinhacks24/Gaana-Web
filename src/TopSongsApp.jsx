@@ -28,14 +28,23 @@ function decryptLink(message) {
 async function extractEncryptedMessage(seokey) {
   try {
     const html = await fetch(proxy(songPageUrl(seokey))).then(r => r.text());
-    const match = html.match(/window\.REDUX_DATA\s*=\s*(\{[\s\S]*?\})\s*;/);
-    if (!match) return null;
-    const json = JSON.parse(match[1]);
+
+    // Step 1: locate the assignment
+    const startIdx = html.indexOf("window.REDUX_DATA = ");
+    if (startIdx === -1) return null;
+
+    const jsonStart = startIdx + "window.REDUX_DATA = ".length;
+    const jsonEnd = html.indexOf(";</script>", jsonStart);
+    const jsonText = html.slice(jsonStart, jsonEnd).trim();
+
+    // Step 2: parse JSON and get the message
+    const json = JSON.parse(jsonText);
     return json.song?.songDetail?.tracks?.[0]?.urls?.high?.message || null;
+
   } catch (err) {
-    console.error("Failed to extract song message:", err);
+    console.error("❌ Failed to extract song message:", err);
+    return null;
   }
-  return null;
 }
 
 const gaanaRaw = (code) =>
