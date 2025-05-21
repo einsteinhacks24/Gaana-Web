@@ -29,17 +29,23 @@ async function extractEncryptedMessage(seokey) {
   try {
     const html = await fetch(proxy(songPageUrl(seokey))).then(r => r.text());
 
-    // Step 1: locate the assignment
     const startIdx = html.indexOf("window.REDUX_DATA = ");
-    if (startIdx === -1) return null;
+    if (startIdx === -1) {
+      console.error("🚫 REDUX_DATA not found in HTML");
+      return null;
+    }
 
     const jsonStart = startIdx + "window.REDUX_DATA = ".length;
     const jsonEnd = html.indexOf(";</script>", jsonStart);
     const jsonText = html.slice(jsonStart, jsonEnd).trim();
 
-    // Step 2: parse JSON and get the message
+    console.log("✅ Extracted JSON (truncated):", jsonText.slice(0, 300)); // <-- LOG THIS
+
     const json = JSON.parse(jsonText);
-    return json.song?.songDetail?.tracks?.[0]?.urls?.high?.message || null;
+    const message = json.song?.songDetail?.tracks?.[0]?.urls?.high?.message || null;
+
+    console.log("🔐 Encrypted message:", message);
+    return message;
 
   } catch (err) {
     console.error("❌ Failed to extract song message:", err);
