@@ -11,7 +11,7 @@ const LANGUAGES = [
   { label: "Kannada", code: "kannada" }
 ];
 
-const proxy = (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`;
+const proxy = (url) => url;
 const songPageUrl = (seokey) => `https://gaana.com/song/${seokey}`;
 
 function decryptLink(message) {
@@ -52,7 +52,7 @@ export default function TopSongsApp() {
     LANGUAGES.forEach(async ({ code }) => {
       setLoading((l) => ({ ...l, [code]: true }));
       try {
-        const json = await fetch(proxy(gaanaRaw(code))).then(r => r.json());
+        const json = await fetch(gaanaRaw(code)).then(r => r.json());
         const enriched = (json.tracks || []).map((track) => {
           const raw = typeof track.popularity === "string" ? track.popularity : "0~0";
           const pop = raw.includes("~") ? parseInt(raw.split("~")[1], 10) : 0;
