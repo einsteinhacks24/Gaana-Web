@@ -1,7 +1,13 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { PlayCircle, ExternalLink } from "lucide-react";
 import { motion } from "framer-motion";
-import CryptoJS from "crypto-js";
+
+/* ------------------------------------------------------------------
+   TopSongsApp (frontend)
+   – Now relies on backend endpoints only:
+       • /api/top100?lang=…  → list of tracks
+       • /api/stream?seokey=… → decrypted audio URL
+   ------------------------------------------------------------------*/
 
 const LANGUAGES = [
   { label: "Telugu", code: "telugu" },
@@ -11,72 +17,38 @@ const LANGUAGES = [
   { label: "Kannada", code: "kannada" }
 ];
 
-const proxy = (url) => url;
-const songPageUrl = (seokey) => `https://gaana.com/song/${seokey}`;
-
-function decryptLink(message) {
-  const KEY = CryptoJS.enc.Utf8.parse("g@1n!(f1#r.0$)&%");
-  const IV = CryptoJS.enc.Utf8.parse("asd!@#!@#@!12312");
-  const decrypted = CryptoJS.AES.decrypt({ ciphertext: CryptoJS.enc.Base64.parse(message) }, KEY, {
-    iv: IV,
-    mode: CryptoJS.mode.CBC,
-    padding: CryptoJS.pad.Pkcs7
-  });
-  return decrypted.toString(CryptoJS.enc.Utf8);
-}
-
-async function extractEncryptedMessage(seokey) {
-  try {
-    const html = await fetch(proxy(songPageUrl(seokey))).then(r => r.text());
-
-    const match = html.match(/window\.REDUX_DATA\s*=\s*(\{.*?\})\s*;<\/script>/s);
-    if (!match || !match[1]) {
-      console.error("🚫 REDUX_DATA block not matched properly");
-      return null;
-    }
-
-    const json = JSON.parse(match[1]);
-
-    const message = json.song?.songDetail?.tracks?.[0]?.urls?.high?.message || null;
-
-    console.log("🔐 Encrypted message:", message);
-    return message;
-
-  } catch (err) {
-    console.error("❌ Failed to extract song message:", err);
-    return null;
-  }
-}
-
-const gaanaRaw = (code) =>
-  `/api/top100?lang=${code}`;
+// our own backend route (no CORS / proxy headaches)
+const gaanaRaw = (code) => `/api/top100?lang=${code}`;
 
 export default function TopSongsApp() {
+  /* --------------------------- state --------------------------- */
   const [songs, setSongs] = useState({});
   const [selected, setSelected] = useState("telugu");
-  const [search, setSearch] = useState("");
+  const [search, setSearch]   = useState("");
   const [loading, setLoading] = useState({});
   const [playingUrl, setPlayingUrl] = useState("");
 
+  /* ---------------------- fetch Top-100 ------------------------ */
   useEffect(() => {
     LANGUAGES.forEach(async ({ code }) => {
       setLoading((l) => ({ ...l, [code]: true }));
       try {
-        const json = await fetch(gaanaRaw(code)).then(r => r.json());
+        const json = await fetch(gaanaRaw(code)).then((r) => r.json());
         const enriched = (json.tracks || []).map((track) => {
           const raw = typeof track.popularity === "string" ? track.popularity : "0~0";
           const pop = raw.includes("~") ? parseInt(raw.split("~")[1], 10) : 0;
           return { ...track, _pop: isNaN(pop) ? 0 : pop };
         });
-        setSongs((prev) => ({ ...prev, [code]: enriched }));
-      } catch (e) {
-        console.error("Fetch failed for", code);
+        setSongs((p) => ({ ...p, [code]: enriched }));
+      } catch (err) {
+        console.error("Top-100 fetch failed", err);
       } finally {
         setLoading((l) => ({ ...l, [code]: false }));
       }
     });
   }, []);
 
+  /* -------------------- search & sort memo --------------------- */
   const visible = useMemo(() => {
     const all = songs[selected] || [];
     const filtered = search
@@ -90,36 +62,50 @@ export default function TopSongsApp() {
     return [...filtered].sort((a, b) => b._pop - a._pop);
   }, [songs, selected, search]);
 
+  /* ---------------------- play handler ------------------------- */
+  const playTrack = async (seokey) => {
+    try {
+      const { url, error } = await fetch(`/api/stream?seokey=${seokey}`).then((r) => r.json());
+      if (url) setPlayingUrl(url);
+      else alert(error || "Stream unavailable");
+    } catch (err) {
+      console.error("/api/stream failed", err);
+      alert("Stream fetch failed");
+    }
+  };
+
+  /* --------------------------- UI ------------------------------ */
   return (
     <div className="min-h-screen bg-gray-100 text-gray-800 p-4">
       <h1 className="text-3xl font-bold text-center mb-6">Best of Gaana – Top 100 Songs</h1>
 
+      {/* language tabs */}
       <div className="flex justify-center space-x-3 mb-4">
-        {LANGUAGES.map((lang) => (
+        {LANGUAGES.map(({ code, label }) => (
           <button
-            key={lang.code}
-            onClick={() => setSelected(lang.code)}
+            key={code}
+            onClick={() => setSelected(code)}
             className={`px-4 py-1 rounded-full font-medium transition-all text-sm shadow-sm ${
-              selected === lang.code
-                ? "bg-black text-white"
-                : "bg-white text-black border"
+              selected === code ? "bg-black text-white" : "bg-white text-black border"
             }`}
           >
-            {lang.label}
+            {label}
           </button>
         ))}
       </div>
 
+      {/* search */}
       <div className="max-w-md mx-auto mb-6">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search songs, albums, artists..."
+          placeholder="Search songs, albums, artists…"
           className="w-full px-4 py-2 rounded-lg border shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
       </div>
 
+      {/* audio player */}
       {playingUrl && (
         <div className="max-w-md mx-auto mb-6">
           <audio controls autoPlay className="w-full">
@@ -129,11 +115,12 @@ export default function TopSongsApp() {
         </div>
       )}
 
+      {/* song grid */}
       {loading[selected] ? (
-        <p className="text-center text-gray-500">Loading songs...</p>
+        <p className="text-center text-gray-500">Loading songs…</p>
       ) : (
         <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
-          {visible.map((song, index) => (
+          {visible.map((song, idx) => (
             <motion.div
               key={song.track_id}
               whileHover={{ scale: 1.03 }}
@@ -141,26 +128,25 @@ export default function TopSongsApp() {
               className="bg-white rounded-xl overflow-hidden shadow hover:shadow-md transition-shadow relative"
             >
               <div className="absolute top-2 left-2 bg-gradient-to-br from-purple-600 to-pink-500 text-white text-base px-3 py-1 rounded-full shadow font-bold">
-                #{index + 1}
+                #{idx + 1}
               </div>
-              <img
-                src={song.artwork_large}
-                alt={song.track_title}
-                className="w-full h-auto"
-              />
+
+              <img src={song.artwork_large} alt={song.track_title} className="w-full h-auto" />
+
               <div className="p-4">
-                <h2 className="font-semibold text-lg leading-tight truncate mb-1">
-                  {song.track_title}
-                </h2>
+                <h2 className="font-semibold text-lg leading-tight truncate mb-1">{song.track_title}</h2>
+
                 <div className="text-sm text-gray-900 mb-1 font-medium flex justify-between items-center gap-2">
                   <span className="truncate">{song.album_title}</span>
                   <span className="text-xs text-gray-500 shrink-0">
                     {song.release_date && new Date(song.release_date).getFullYear()}
                   </span>
                 </div>
+
                 <p className="text-xs text-gray-500 mb-2 truncate">
                   {(song.artist || []).map((a) => a.name).join(", ")}
                 </p>
+
                 <div className="text-xs text-gray-700 mb-2 flex items-center justify-between">
                   <span>
                     {Math.floor(Number(song.duration) / 60)
@@ -171,6 +157,7 @@ export default function TopSongsApp() {
                   </span>
                   <span>{Number(song._pop).toLocaleString()} 🔥</span>
                 </div>
+
                 <div className="flex flex-wrap gap-2 text-sm">
                   {song.youtube_id && (
                     <a
@@ -192,26 +179,7 @@ export default function TopSongsApp() {
                       <ExternalLink size={14} className="mr-1" /> Lyrics
                     </a>
                   )}
-                  <button
-                    onClick={async () => {
-                      const msg = await extractEncryptedMessage(song.seokey);
-                      console.log("🔐 Encrypted message:", msg);
-
-                      if (msg) {
-                        try {
-                          const url = decryptLink(msg);
-                          console.log("🎧 Decrypted stream URL:", url);
-                          setPlayingUrl(url);
-                        } catch (err) {
-                          console.error("Decryption failed:", err);
-                          alert("Decryption failed.");
-                        }
-                      } else {
-                        alert("No playable stream found.");
-                      }
-                    }}
-                    className="text-green-700 underline"
-                  >
+                  <button onClick={() => playTrack(song.seokey)} className="text-green-700 underline">
                     ▶️ Play
                   </button>
                 </div>
