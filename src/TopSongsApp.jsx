@@ -1,54 +1,66 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { PlayCircle, ExternalLink } from 'lucide-react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState, useMemo } from "react";
+import { PlayCircle, ExternalLink } from "lucide-react";
+import { motion } from "framer-motion";
+import CryptoJS from "crypto-js";
 
 const LANGUAGES = [
-  { label: 'Telugu', code: 'telugu' },
-  { label: 'Hindi', code: 'hindi' },
-  { label: 'English', code: 'english' },
-  { label: 'Tamil', code: 'tamil' },
-  { label: 'Kannada', code: 'kannada' },
+  { label: "Telugu", code: "telugu" },
+  { label: "Hindi", code: "hindi" },
+  { label: "English", code: "english" },
+  { label: "Tamil", code: "tamil" },
+  { label: "Kannada", code: "kannada" }
 ];
 
-const proxyBuilders = [
-  (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  (url) => `https://thingproxy.freeboard.io/fetch/${url}`,
-];
+const proxy = (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`;
+const songPageUrl = (seokey) => `https://gaana.com/song/${seokey}`;
+
+function decryptLink(message) {
+  const KEY = CryptoJS.enc.Utf8.parse("g@1n!(f1#r.0$)&%");
+  const IV = CryptoJS.enc.Utf8.parse("asd!@#!@#@!12312");
+  const decrypted = CryptoJS.AES.decrypt({ ciphertext: CryptoJS.enc.Base64.parse(message) }, KEY, {
+    iv: IV,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.Pkcs7
+  });
+  return decrypted.toString(CryptoJS.enc.Utf8);
+}
+
+async function extractEncryptedMessage(seokey) {
+  try {
+    const html = await fetch(proxy(songPageUrl(seokey))).then(r => r.text());
+    const match = html.match(/window\.REDUX_DATA\s*=\s*(\{.*?\});/s);
+    if (!match) return null;
+    const json = JSON.parse(match[1]);
+    return json.song?.songDetail?.tracks?.[0]?.urls?.high?.message || null;
+  } catch (err) {
+    console.error("Failed to extract song message:", err);
+  }
+  return null;
+}
 
 const gaanaRaw = (code) =>
-  `http://api.gaana.com/?type=song&subtype=most_popular&format=JSON&order=alltime&language=${code}&limit=0,100`;
-
-async function fetchWithFallback(url) {
-  for (const build of proxyBuilders) {
-    try {
-      const r = await fetch(build(url));
-      if (r.ok) return r.json();
-    } catch (_) {}
-  }
-  throw new Error('All proxies failed');
-}
+  `/api/top100?lang=${code}`;
 
 export default function TopSongsApp() {
   const [songs, setSongs] = useState({});
-  const [selected, setSelected] = useState('telugu');
-  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState("telugu");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState({});
+  const [playingUrl, setPlayingUrl] = useState("");
 
   useEffect(() => {
     LANGUAGES.forEach(async ({ code }) => {
       setLoading((l) => ({ ...l, [code]: true }));
       try {
-        const json = await fetchWithFallback(gaanaRaw(code));
+        const json = await fetch(proxy(gaanaRaw(code))).then(r => r.json());
         const enriched = (json.tracks || []).map((track) => {
-          const raw =
-            typeof track.popularity === 'string' ? track.popularity : '0~0';
-          const pop = raw.includes('~') ? parseInt(raw.split('~')[1], 10) : 0;
+          const raw = typeof track.popularity === "string" ? track.popularity : "0~0";
+          const pop = raw.includes("~") ? parseInt(raw.split("~")[1], 10) : 0;
           return { ...track, _pop: isNaN(pop) ? 0 : pop };
         });
         setSongs((prev) => ({ ...prev, [code]: enriched }));
       } catch (e) {
-        console.error('Fetch failed for', code);
+        console.error("Fetch failed for", code);
       } finally {
         setLoading((l) => ({ ...l, [code]: false }));
       }
@@ -60,7 +72,7 @@ export default function TopSongsApp() {
     const filtered = search
       ? all.filter((t) =>
           [t.track_title, t.album_title, ...(t.artist || []).map((a) => a.name)]
-            .join(' ')
+            .join(" ")
             .toLowerCase()
             .includes(search.toLowerCase())
         )
@@ -70,9 +82,7 @@ export default function TopSongsApp() {
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-800 p-4">
-      <h1 className="text-3xl font-bold text-center mb-6">
-        Best of Gaana – Top 100 Songs
-      </h1>
+      <h1 className="text-3xl font-bold text-center mb-6">Best of Gaana – Top 100 Songs</h1>
 
       <div className="flex justify-center space-x-3 mb-4">
         {LANGUAGES.map((lang) => (
@@ -81,8 +91,8 @@ export default function TopSongsApp() {
             onClick={() => setSelected(lang.code)}
             className={`px-4 py-1 rounded-full font-medium transition-all text-sm shadow-sm ${
               selected === lang.code
-                ? 'bg-black text-white'
-                : 'bg-white text-black border'
+                ? "bg-black text-white"
+                : "bg-white text-black border"
             }`}
           >
             {lang.label}
@@ -100,10 +110,19 @@ export default function TopSongsApp() {
         />
       </div>
 
+      {playingUrl && (
+        <div className="max-w-md mx-auto mb-6">
+          <audio controls autoPlay className="w-full">
+            <source src={playingUrl} type="audio/mp4" />
+            Your browser does not support the audio element.
+          </audio>
+        </div>
+      )}
+
       {loading[selected] ? (
         <p className="text-center text-gray-500">Loading songs...</p>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
           {visible.map((song, index) => (
             <motion.div
               key={song.track_id}
@@ -111,7 +130,7 @@ export default function TopSongsApp() {
               whileTap={{ scale: 0.97 }}
               className="bg-white rounded-xl overflow-hidden shadow hover:shadow-md transition-shadow relative"
             >
-              <div className="absolute top-2 left-2 bg-gradient-to-br from-purple-600 to-pink-500 text-white text-xs px-2 py-1 rounded-full shadow font-semibold">
+              <div className="absolute top-2 left-2 bg-gradient-to-br from-purple-600 to-pink-500 text-white text-base px-3 py-1 rounded-full shadow font-bold">
                 #{index + 1}
               </div>
               <img
@@ -120,29 +139,29 @@ export default function TopSongsApp() {
                 className="w-full h-auto"
               />
               <div className="p-4">
-                <h2 className="font-semibold text-lg mb-1 line-clamp-1">
+                <h2 className="font-semibold text-lg leading-tight truncate mb-1">
                   {song.track_title}
                 </h2>
-                <div className="text-sm text-gray-900 mb-1 font-medium flex justify-between gap-2">
-                  <span className="truncate w-full">{song.album_title}</span>
+                <div className="text-sm text-gray-900 mb-1 font-medium flex justify-between items-center gap-2">
+                  <span className="truncate">{song.album_title}</span>
                   <span className="text-xs text-gray-500 shrink-0">
-                    {song.release_date &&
-                      new Date(song.release_date).getFullYear()}
+                    {song.release_date && new Date(song.release_date).getFullYear()}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 mb-2 line-clamp-1">
-                  {(song.artist || []).map((a) => a.name).join(', ')}
+                <p className="text-xs text-gray-500 mb-2 truncate">
+                  {(song.artist || []).map((a) => a.name).join(", ")}
                 </p>
                 <div className="text-xs text-gray-700 mb-2 flex items-center justify-between">
                   <span>
                     {Math.floor(Number(song.duration) / 60)
                       .toString()
-                      .padStart(2, '0')}
-                    :{(Number(song.duration) % 60).toString().padStart(2, '0')}
+                      .padStart(2, "0")}
+                    :
+                    {(Number(song.duration) % 60).toString().padStart(2, "0")}
                   </span>
                   <span>{Number(song._pop).toLocaleString()} 🔥</span>
                 </div>
-                <div className="flex space-x-3 text-sm">
+                <div className="flex flex-wrap gap-2 text-sm">
                   {song.youtube_id && (
                     <a
                       href={`https://youtu.be/${song.youtube_id}`}
@@ -163,6 +182,24 @@ export default function TopSongsApp() {
                       <ExternalLink size={14} className="mr-1" /> Lyrics
                     </a>
                   )}
+                  <button
+                    onClick={async () => {
+                      const msg = await extractEncryptedMessage(song.seokey);
+                      if (msg) {
+                        try {
+                          const url = decryptLink(msg);
+                          setPlayingUrl(url);
+                        } catch (err) {
+                          alert("Decryption failed.");
+                        }
+                      } else {
+                        alert("No playable stream found.");
+                      }
+                    }}
+                    className="text-green-700 underline"
+                  >
+                    ▶️ Play
+                  </button>
                 </div>
               </div>
             </motion.div>
