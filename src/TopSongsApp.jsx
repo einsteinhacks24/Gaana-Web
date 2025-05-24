@@ -6,12 +6,12 @@ import Hls from "hls.js";
 /* ───────────────── CONFIG ───────────────── */
 const LANGUAGES = [
   { label: "Telugu", code: "telugu" },
-  { label: "Hindi",  code: "hindi"  },
-  { label: "English",code: "english"},
-  { label: "Tamil",  code: "tamil"  },
-  { label: "Kannada",code: "kannada" }
+  { label: "Hindi", code: "hindi" },
+  { label: "English", code: "english" },
+  { label: "Tamil", code: "tamil" },
+  { label: "Kannada", code: "kannada" }
 ];
-const apiTop  = (c) => `/api/top100?lang=${c}`;
+const apiTop = (c) => `/api/top100?lang=${c}`;
 const apiPlay = (k) => `/api/stream?seokey=${k}`;
 
 /* ───────────────── COMPONENT ───────────────── */
@@ -19,14 +19,14 @@ export default function TopSongsApp() {
   /* state */
   const [list, setList] = useState({});
   const [lang, setLang] = useState("telugu");
-  const [q, setQ]       = useState("");
+  const [q, setQ] = useState("");
   const [wait, setWait] = useState({});
-  const [current, setCurrent]   = useState(null); // track_id
-  const [playing, setPlaying]   = useState(false);
-  const [url, setUrl]           = useState("");
+  const [current, setCurrent] = useState(null); // track_id
+  const [playing, setPlaying] = useState(false);
+  const [url, setUrl] = useState("");
 
   const audio = useRef(null);
-  const hls   = useRef(null);
+  const hls = useRef(null);
 
   /* fetch top‑100 per language once */
   useEffect(() => {
@@ -48,14 +48,14 @@ export default function TopSongsApp() {
   /* search + sort */
   const songs = useMemo(() => {
     const src = list[lang] || [];
-    const f   = q.trim().toLowerCase();
-    const r   = f
+    const f = q.trim().toLowerCase();
+    const r = f
       ? src.filter((s) =>
-          [s.track_title, s.album_title, ...(s.artist||[]).map((a) => a.name)]
-            .join(" ").toLowerCase().includes(f)
-        )
+        [s.track_title, s.album_title, ...(s.artist || []).map((a) => a.name)]
+          .join(" ").toLowerCase().includes(f)
+      )
       : src;
-    return [...r].sort((a,b) => b._pop - a._pop);
+    return [...r].sort((a, b) => b._pop - a._pop);
   }, [list, lang, q]);
 
   /* attach / detach HLS */
@@ -95,7 +95,7 @@ export default function TopSongsApp() {
   };
 
   /* helpers */
-  const fmtDur = (d) => `${String(Math.floor(d/60)).padStart(2,"0")}:${String(d%60).padStart(2,"0")}`;
+  const fmtDur = (d) => `${String(Math.floor(d / 60)).padStart(2, "0")}:${String(d % 60).padStart(2, "0")}`;
 
   /* ───────────────── UI ───────────────── */
   return (
@@ -110,9 +110,8 @@ export default function TopSongsApp() {
           <button
             key={l.code}
             onClick={() => setLang(l.code)}
-            className={`px-4 py-1 rounded-full text-sm font-medium shadow transition ${
-              lang===l.code ? "bg-black text-white" : "bg-white border"
-            }`}
+            className={`px-4 py-1 rounded-full text-sm font-medium shadow transition ${lang === l.code ? "bg-black text-white" : "bg-white border"
+              }`}
           >{l.label}</button>
         ))}
       </div>
@@ -145,28 +144,27 @@ export default function TopSongsApp() {
             return (
               <motion.div
                 key={s.track_id}
-                className={`bg-white rounded-xl shadow relative overflow-hidden ${
-                  isNow ? "ring-2 ring-green-400 shadow-lg" : ""
-                }`}
+                className={`bg-white rounded-xl shadow relative overflow-hidden ${isNow ? "ring-2 ring-green-400 shadow-lg" : ""
+                  }`}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
               >
                 {/* rank badge */}
-                <span className="absolute top-2 left-2 bg-gradient-to-br from-purple-600 to-pink-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow">#{i+1}</span>
+                <div className="absolute top-2 left-2 z-10 bg-gradient-to-br from-purple-600 to-pink-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow">
+                  #{i + 1}
+                </div>
 
                 {/* artwork + overlay */}
                 <div className="relative group">
                   <img src={s.artwork_large} alt={s.track_title} className="w-full aspect-square object-cover" />
-                  <div className={`absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition ${
-                    isNow && playing ? "bg-black/20" : ""
-                  }`}>
+                  <div className={`absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition ${isNow && playing ? "bg-black/20" : ""
+                    }`}>
                     <motion.button
                       onClick={() => toggle(s)}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.92 }}
-                      className={`rounded-full p-3 shadow-lg transition ${
-                        isNow && playing ? "bg-green-500 text-white" : "bg-white text-gray-800 group-hover:bg-green-500 group-hover:text-white"
-                      } ${isNow ? "opacity-100 scale-100" : "opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100"}`}
+                      className={`rounded-full p-3 shadow-lg transition ${isNow && playing ? "bg-green-500 text-white" : "bg-white text-gray-800 group-hover:bg-green-500 group-hover:text-white"
+                        } ${isNow ? "opacity-100 scale-100" : "opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100"}`}
                     >
                       {isNow && playing ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
                     </motion.button>
@@ -207,9 +205,8 @@ export default function TopSongsApp() {
                     </div>
                     <button
                       onClick={() => toggle(s)}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition ${
-                        isNow && playing ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-700 hover:bg-green-100 hover:text-green-700"
-                      }`}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition ${isNow && playing ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-700 hover:bg-green-100 hover:text-green-700"
+                        }`}
                     >
                       {isNow && playing ? <Pause size={12} /> : <Play size={12} className="ml-0.5" />}
                       <span>{isNow && playing ? "Pause" : "Play"}</span>
